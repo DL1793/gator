@@ -4,9 +4,11 @@ import (
 	"fmt"
 
 	"github.com/DL1793/gator/internal/config"
+	"github.com/DL1793/gator/internal/database"
 )
 
 type state struct {
+	db  *database.Queries
 	cfg *config.Config
 }
 
@@ -20,7 +22,8 @@ type commands struct {
 }
 
 func (c *commands) run(s *state, cmd command) error {
-
+	err := c.callback[cmd.name](s, cmd)
+	return err
 }
 
 func (c *commands) register(name string, f func(*state, command) error) {
@@ -29,6 +32,7 @@ func (c *commands) register(name string, f func(*state, command) error) {
 
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) != 1 {
+		fmt.Println("Usage: login <username>")
 		return fmt.Errorf("invalid command arguments")
 	}
 	err := s.cfg.SetUser(cmd.args[0])
@@ -36,4 +40,5 @@ func handlerLogin(s *state, cmd command) error {
 		return err
 	}
 	fmt.Printf("User set %s\n", s.cfg.CurrentUserName)
+	return nil
 }
