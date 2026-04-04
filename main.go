@@ -25,6 +25,10 @@ func main() {
 		make(map[string]func(*state, command) error),
 	}
 	cmds.register("login", handlerLogin)
+	cmds.register("register", handlerRegister)
+	cmds.register("reset", handlerReset)
+	cmds.register("users", handlerUsers)
+	cmds.register("agg", handlerAgg)
 	args := os.Args
 
 	db, err := sql.Open("postgres", cfg.DbUrl)
