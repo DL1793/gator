@@ -78,6 +78,41 @@ func handlerRegister(s *state, cmd command) error {
 	return nil
 }
 
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.args) != 2 {
+		fmt.Println("Usage: add <name> <feed>")
+		return fmt.Errorf("invalid command arguments")
+	}
+	currentUser, err := getCurrentUser(s)
+	if err != nil {
+		return err
+	}
+
+	params := database.CreateFeedParams{
+		uuid.New(),
+		time.Now(),
+		time.Now(),
+		cmd.args[0],
+		cmd.args[1],
+		currentUser.ID,
+	}
+
+	feed, err := s.db.CreateFeed(context.Background(), params)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Feed added: %v", feed)
+	return nil
+}
+
+func getCurrentUser(s *state) (database.User, error) {
+	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		return database.User{}, err
+	}
+	return user, nil
+}
+
 func handlerReset(s *state, cmd command) error {
 	if len(cmd.args) != 0 {
 		fmt.Println("Usage: reset")
