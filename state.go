@@ -144,6 +144,20 @@ func handlerUsers(s *state, cmd command) error {
 	return nil
 }
 
+func handlerFeeds(s *state, cmd command) error {
+	if len(cmd.args) != 0 {
+		fmt.Println("Usage: feeds")
+	}
+	feeds, err := s.db.GetFeeds(context.Background())
+	if err != nil {
+		return err
+	}
+	for _, feed := range feeds {
+		fmt.Printf("* %s\n", feed)
+	}
+	return nil
+}
+
 func handlerAgg(s *state, cmd command) error {
 	if len(cmd.args) != 1 {
 		fmt.Println("Usage: agg")
@@ -153,5 +167,35 @@ func handlerAgg(s *state, cmd command) error {
 		return err
 	}
 	fmt.Println(feed)
+	return nil
+}
+
+func handlerFollow(s *state, cmd command) error {
+	if len(cmd.args) != 1 {
+		fmt.Println("Usage: follow <url>")
+	}
+	url := cmd.args[0]
+	now := time.Now()
+	currentUser, err := getCurrentUser(s)
+	if err != nil {
+		return err
+	}
+	feed_id, err := s.db.GetFeedId(context.Background(), url)
+	if err != nil {
+		return err
+	}
+
+	params := database.CreateFeedFollowParams{
+		uuid.New(),
+		now,
+		now,
+		currentUser.ID,
+		feed_id,
+	}
+	res, err := s.db.CreateFeedFollow(context.Background(), params)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Feed followed: %v\n Current User: %v\n", res.FeedName, res.UserName)
 	return nil
 }
