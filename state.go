@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/DL1793/gator/internal/config"
 	"github.com/DL1793/gator/internal/database"
 )
@@ -20,8 +22,11 @@ type commands struct {
 }
 
 func (c *commands) run(s *state, cmd command) error {
-	err := c.callback[cmd.name](s, cmd)
-	return err
+	f, ok := c.callback[cmd.name]
+	if !ok {
+		return errors.New("command not found: " + cmd.name)
+	}
+	return f(s, cmd)
 }
 
 func (c *commands) register(name string, f func(*state, command) error) {

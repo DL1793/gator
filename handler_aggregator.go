@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DL1793/gator/internal/database"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"golang.org/x/net/html"
 )
 
 func handlerAgg(s *state, cmd command) error {
@@ -36,7 +38,7 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 		return errors.New("usage: browse <limit>")
 	}
 	var limit int
-	if cmd.args[0] == "" {
+	if len(cmd.args) == 0 {
 		limit = 2
 	} else {
 		var err error
@@ -57,7 +59,17 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 		return errors.New("no posts found")
 	}
 	for _, post := range posts {
-		fmt.Printf("* TITLE: %s\n * LINK: %s\n * DESCRIPTION: %s\n * PUB DATE: %s\n", post.Title, post.Url, post.Description, post.PublishedAt)
+		fmt.Printf("* TITLE: %s\n* LINK: %s\n",
+			post.Title.String, post.Url)
+		if post.Description.Valid {
+			desc := stripHTML(post.Description.String)
+			if desc != "" {
+				fmt.Printf("* DESCRIPTION: %s\n", desc)
+			}
+
+		}
+		fmt.Printf("* PUB DATE: %s\n\n", post.PublishedAt.Time.Format("Mon Jan 2"))
+
 	}
 	return nil
 }
@@ -145,4 +157,25 @@ func scrapeFeeds(s *state) {
 			}
 		}
 	}
+}
+
+func stripHTML(s string) string {
+	doc, err := html.ParseFragment(strings.NewReader(s), nil)
+	if err != nil {
+		return s
+	}
+	var buf strings.Builder
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.TextNode {
+			buf.WriteString(n.Data)
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	for _, node := range doc {
+		walk(node)
+	}
+	return strings.TrimSpace(buf.String())
 }
