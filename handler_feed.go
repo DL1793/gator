@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 
 func handlerFeeds(s *state, cmd command) error {
 	if len(cmd.args) != 0 {
-		fmt.Println("Usage: feeds")
+		return errors.New("usage: feeds")
 	}
 	feeds, err := s.db.GetFeeds(context.Background())
 	if err != nil {
@@ -25,28 +26,27 @@ func handlerFeeds(s *state, cmd command) error {
 
 func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {
-		fmt.Println("Usage: add <name> <feed>")
-		return fmt.Errorf("invalid command arguments")
+		return errors.New("usage: add <name> <feed>")
 	}
 
-	feed_id := uuid.New()
+	feedId := uuid.New()
 	now := time.Now()
 
 	params := database.CreateFeedParams{
-		feed_id,
-		now,
-		now,
-		cmd.args[0],
-		cmd.args[1],
-		user.ID,
+		ID:        feedId,
+		CreatedAt: now,
+		UpdatedAt: now,
+		Name:      cmd.args[0],
+		Url:       cmd.args[1],
+		UserID:    user.ID,
 	}
 
-	feedFollow_params := database.CreateFeedFollowParams{
-		uuid.New(),
-		now,
-		now,
-		user.ID,
-		feed_id,
+	feedFollowParams := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: now,
+		UpdatedAt: now,
+		UserID:    user.ID,
+		FeedID:    feedId,
 	}
 
 	feed, err := s.db.CreateFeed(context.Background(), params)
@@ -55,7 +55,7 @@ func handlerAddFeed(s *state, cmd command, user database.User) error {
 	}
 	fmt.Printf("Feed added: %v", feed)
 
-	res, err := s.db.CreateFeedFollow(context.Background(), feedFollow_params)
+	res, err := s.db.CreateFeedFollow(context.Background(), feedFollowParams)
 	if err != nil {
 		return err
 	}
@@ -66,21 +66,21 @@ func handlerAddFeed(s *state, cmd command, user database.User) error {
 
 func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 1 {
-		fmt.Println("Usage: follow <url>")
+		return errors.New("usage: follow <url>")
 	}
 	url := cmd.args[0]
 	now := time.Now()
-	feed_id, err := s.db.GetFeedId(context.Background(), url)
+	feedId, err := s.db.GetFeedId(context.Background(), url)
 	if err != nil {
 		return err
 	}
 
 	params := database.CreateFeedFollowParams{
-		uuid.New(),
-		now,
-		now,
-		user.ID,
-		feed_id,
+		ID:        uuid.New(),
+		CreatedAt: now,
+		UpdatedAt: now,
+		UserID:    user.ID,
+		FeedID:    feedId,
 	}
 	res, err := s.db.CreateFeedFollow(context.Background(), params)
 	if err != nil {
@@ -92,16 +92,16 @@ func handlerFollow(s *state, cmd command, user database.User) error {
 
 func handlerUnfollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 1 {
-		fmt.Println("Usage: unfollow <url>")
+		return errors.New("usage: unfollow <url>")
 	}
 	url := cmd.args[0]
-	feed_id, err := s.db.GetFeedId(context.Background(), url)
+	feedId, err := s.db.GetFeedId(context.Background(), url)
 	if err != nil {
 		return err
 	}
 	params := database.DeleteFeedFollowParams{
-		user.ID,
-		feed_id,
+		UserID: user.ID,
+		FeedID: feedId,
 	}
 	err = s.db.DeleteFeedFollow(context.Background(), params)
 	if err != nil {
@@ -112,7 +112,7 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 
 func handlerGetFeedFollowsForUser(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 0 {
-		fmt.Println("Usage: following")
+		return errors.New("usage: following")
 	}
 
 	feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)

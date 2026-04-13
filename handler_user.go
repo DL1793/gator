@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -12,8 +13,7 @@ import (
 
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) != 1 {
-		fmt.Println("Usage: login <username>")
-		return fmt.Errorf("invalid command arguments")
+		return errors.New("usage: login <username>")
 	}
 
 	_, err := s.db.GetUser(context.Background(), cmd.args[0])
@@ -32,14 +32,14 @@ func handlerLogin(s *state, cmd command) error {
 
 func handlerRegister(s *state, cmd command) error {
 	if len(cmd.args) != 1 {
-		fmt.Println("Usage: register <username>")
+		return errors.New("usage: register <username>")
 	}
 
 	params := database.CreateUserParams{
-		uuid.New(),
-		time.Now(),
-		time.Now(),
-		cmd.args[0]}
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      cmd.args[0]}
 
 	_, err := s.db.CreateUser(context.Background(), params)
 	if err != nil {
@@ -56,7 +56,7 @@ func handlerRegister(s *state, cmd command) error {
 
 func handlerUsers(s *state, cmd command) error {
 	if len(cmd.args) != 0 {
-		fmt.Println("Usage: users")
+		return errors.New("usage: users")
 	}
 	users, err := s.db.GetUsers(context.Background())
 	if err != nil {
@@ -74,7 +74,7 @@ func handlerUsers(s *state, cmd command) error {
 
 func handlerReset(s *state, cmd command) error {
 	if len(cmd.args) != 0 {
-		fmt.Println("Usage: reset")
+		return errors.New("usage: reset")
 	}
 	err := s.db.ClearUsers(context.Background())
 	if err != nil {

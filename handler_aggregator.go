@@ -28,9 +28,12 @@ func handlerAgg(s *state, cmd command) error {
 	ticker := time.NewTicker(duration)
 	for ; ; <-ticker.C {
 		fmt.Println("Fetching feeds...")
-		scrapeFeeds(s)
+		err := scrapeFeeds(s)
+		if err != nil {
+			fmt.Printf("Failed to fetch feeds: %v\n", err)
+		}
 	}
-
+	//return nil
 }
 
 func handlerBrowse(s *state, cmd command, user database.User) error {
@@ -74,56 +77,58 @@ func handlerBrowse(s *state, cmd command, user database.User) error {
 	return nil
 }
 
-func scrapeFeeds(s *state) {
+func scrapeFeeds(s *state) error {
 	feed, err := s.db.GetNextFeedToFetch(context.Background())
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 	params := database.MarkFeedFetchedParams{
-		sql.NullTime{
+		LastFetchedAt: sql.NullTime{
 			Time:  time.Now(),
 			Valid: true,
 		},
-		feed.ID,
+		ID: feed.ID,
 	}
 
 	err = s.db.MarkFeedFetched(context.Background(), params)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 	rss, err := fetchFeed(context.Background(), feed.Url)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
+
+	formats := []string{
+		time.RFC1123Z,
+		time.RFC1123,
+		time.RFC822Z,
+		time.RFC822,
+		time.RFC3339,
+	}
+
 	for _, item := range rss.Channel.Items {
-		//fmt.Println(item.Title)
+		var t time.Time
 		now := time.Now()
 		var pubDate sql.NullTime
 		valid := true
-		if item.PubDate != "" {
-			t, err := time.Parse(time.RFC1123Z, item.PubDate)
-			if err != nil {
-				t, err = time.Parse(time.RFC1123, item.PubDate)
-				if err != nil {
-					t, err = time.Parse(time.RFC822Z, item.PubDate)
-					if err != nil {
-						t, err = time.Parse(time.RFC822, item.PubDate)
-						if err != nil {
-							t, err = time.Parse(time.RFC3339, item.PubDate)
-							if err != nil {
-								fmt.Println(err)
-								valid = false
-							}
-						}
-					}
-				}
+		parsed := false
+		for _, format := range formats {
+			t, err = time.Parse(format, item.PubDate)
+			if err == nil {
+				parsed = true
+				break
 			}
-			pubDate.Time = t
-			pubDate.Valid = valid
-		} else {
-			pubDate.Valid = false
 		}
+		if !parsed {
+			valid = false
+		}
+
+		pubDate.Time = t
+		pubDate.Valid = valid
+
 		var validTitle bool
+
 		if item.Title != "" {
 			validTitle = true
 		} else {
@@ -131,32 +136,32 @@ func scrapeFeeds(s *state) {
 		}
 
 		params := database.CreatePostParams{
-			uuid.New(),
-			now,
-			now,
-			sql.NullString{
-				item.Title,
-				validTitle,
+			ID:        uuid.New(),
+			CreatedAt: now,
+			UpdatedAt: now,
+			Title: sql.NullString{
+				String: item.Title,
+				Valid:  validTitle,
 			},
-			item.Link,
-			sql.NullString{
-				item.Description,
-				true,
+			Url: item.Link,
+			Description: sql.NullString{
+				String: item.Description,
+				Valid:  true,
 			},
-			pubDate,
-			feed.ID,
+			PublishedAt: pubDate,
+			FeedID:      feed.ID,
 		}
 		fmt.Println("Creating", item.Title, "with", item.Description)
 		_, err = s.db.CreatePost(context.Background(), params)
 		if err != nil {
-			var pqErr *pq.Error
-			if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			if pqErr, ok := errors.AsType[*pq.Error](err); ok && pqErr.Code == "23505" {
 				//post already exists, ignore
 			} else {
-				fmt.Println(err)
+				return err
 			}
 		}
 	}
+	return nil
 }
 
 func stripHTML(s string) string {
