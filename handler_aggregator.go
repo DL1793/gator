@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/DL1793/gator/internal/database"
@@ -14,7 +15,7 @@ import (
 
 func handlerAgg(s *state, cmd command) error {
 	if len(cmd.args) != 1 {
-		fmt.Println("Usage: agg <time_between_reqs>")
+		return errors.New("usage: agg <time_between_reqs>")
 	}
 	timeBetweenReqs := cmd.args[0]
 	duration, err := time.ParseDuration(timeBetweenReqs)
@@ -28,6 +29,37 @@ func handlerAgg(s *state, cmd command) error {
 		scrapeFeeds(s)
 	}
 
+}
+
+func handlerBrowse(s *state, cmd command, user database.User) error {
+	if len(cmd.args) > 1 {
+		return errors.New("usage: browse <limit>")
+	}
+	var limit int
+	if cmd.args[0] == "" {
+		limit = 2
+	} else {
+		var err error
+		limit, err = strconv.Atoi(cmd.args[0])
+		if err != nil {
+			return err
+		}
+	}
+	params := database.GetPostsForUserParams{
+		UserID: user.ID,
+		Limit:  int32(limit),
+	}
+	posts, err := s.db.GetPostsForUser(context.Background(), params)
+	if err != nil {
+		return err
+	}
+	if len(posts) == 0 {
+		return errors.New("no posts found")
+	}
+	for _, post := range posts {
+		fmt.Printf("* TITLE: %s\n * LINK: %s\n * DESCRIPTION: %s\n * PUB DATE: %s\n", post.Title, post.Url, post.Description, post.PublishedAt)
+	}
+	return nil
 }
 
 func scrapeFeeds(s *state) {
@@ -52,6 +84,7 @@ func scrapeFeeds(s *state) {
 		fmt.Println(err)
 	}
 	for _, item := range rss.Channel.Items {
+		//fmt.Println(item.Title)
 		now := time.Now()
 		var pubDate sql.NullTime
 		valid := true
@@ -101,6 +134,7 @@ func scrapeFeeds(s *state) {
 			pubDate,
 			feed.ID,
 		}
+		fmt.Println("Creating", item.Title, "with", item.Description)
 		_, err = s.db.CreatePost(context.Background(), params)
 		if err != nil {
 			var pqErr *pq.Error
